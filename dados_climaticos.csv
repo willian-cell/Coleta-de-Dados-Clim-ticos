@@ -1,0 +1,5 @@
+cidade,temperatura_atual,data_coleta,sensacao_termica,umidade,descricao_clima
+Guarulhos,23.82,2025-02-26 02:22:33.292566+00:00,24.29,78,algumas nuvens
+São Paulo,23.96,2025-02-26 02:28:53.510384+00:00,24.5,80,céu limpo
+Aracaju,26.97,2025-02-26 02:29:43.231468+00:00,29.49,78,algumas nuvens
+Boa Vista,27.99,2025-02-26 02:30:01.364103+00:00,29.55,61,céu limpo
