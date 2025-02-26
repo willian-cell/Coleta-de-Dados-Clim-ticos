@@ -1,8 +1,8 @@
 import streamlit as st
 import requests
 import pandas as pd
-import os
-import sqlite3
+import io
+from datetime import datetime
 
 st.set_page_config(page_title="Coleta de Dados Climáticos 🌍", layout="wide")
 
@@ -10,67 +10,63 @@ st.title("Coleta de Dados Climáticos 🌍")
 st.subheader("Por: Willian Batista Oliveira")
 st.subheader("📊 Analista de Dados")
 
+# Lista para armazenar consultas
+if "consulta_de_dados" not in st.session_state:
+    st.session_state.consulta_de_dados = []
+
+# Capturar nome do usuário localmente
+usuario = st.text_input("👤 Digite seu nome:", value="Usuário", max_chars=50)
+
 # Entrada de dados
-chave_api = st.text_input("🔑 Digite sua chave da API OpenWeatherMap:", type="password")
+chave_api = "42d01a312f6740b003d77ae949a14376"
 cidades = st.text_area("📍 Digite as cidades (separadas por vírgula):")
-
-# Escolha do destino dos dados (CSV, Banco SQLAlchemy, ou SQLite)
-destino = st.radio("📌 Onde deseja salvar os dados?", ["CSV", "Banco de Dados", "SQLite"])
-
-banco_url = ""
-if destino == "Banco de Dados":
-    banco_url = st.text_input("🔗 Digite a URL do Banco de Dados (SQLAlchemy):")
+destino = st.radio("📌 Como deseja baixar seus dados?", ["CSV", "Excel"])  # Removido Word
 
 if st.button("🚀 Coletar Dados"):
     if not chave_api or not cidades:
         st.error("⚠️ Por favor, insira a chave da API e as cidades.")
     else:
-        params = {
-            "cidades": cidades,
-            "chave_api": chave_api,
-            "destino": "banco" if destino == "Banco de Dados" else "sqlite" if destino == "SQLite" else "csv",
-            "banco_url": banco_url
-        }
-
-        with st.spinner("🔄 Coletando dados... Aguarde!"):
-            response = requests.get("http://127.0.0.1:8000/buscar_dados/", params=params)
+        cidades_lista = [cidade.strip() for cidade in cidades.split(",")]
+        dados_coletados = []
         
-        if response.status_code == 200:
-            dados_resposta = response.json()
-            st.success(dados_resposta["mensagem"])
-
-            if "dados" in dados_resposta:
-                df = pd.DataFrame(dados_resposta["dados"])
-
-                # Exibir dados na interface
-                st.subheader("📊 Dados Recentes Coletados")
-                st.dataframe(df.style.set_properties(**{
-                    'background-color': 'white',
-                    'color': 'black',
-                    'border-color': 'black'
-                }))
-
-                # Botão de download do CSV
+        with st.spinner("🔄 Coletando dados... Aguarde!"):
+            for cidade in cidades_lista:
+                url = f"http://api.openweathermap.org/data/2.5/weather?q={cidade}&appid={chave_api}&lang=pt_br&units=metric"
+                response = requests.get(url)
+                
+                if response.status_code == 200:
+                    dados = response.json()
+                    dados_coletados.append({
+                        "Usuário": usuario,
+                        "Cidade": dados["name"],
+                        "Temperatura Atual": dados["main"]["temp"],
+                        "Sensação Térmica": dados["main"]["feels_like"],
+                        "Umidade": dados["main"]["humidity"],
+                        "Descrição do Clima": dados["weather"][0]["description"],
+                        "Data da Coleta": datetime.utcnow().strftime("%d/%m/%Y %H:%M")
+                    })
+            
+        if dados_coletados:
+            st.session_state.consulta_de_dados.extend(dados_coletados)
+            df = pd.DataFrame(st.session_state.consulta_de_dados)
+            st.success("✅ Dados coletados com sucesso!")
+            
+            # Exibir a última consulta
+            st.subheader("📌 Última Consulta")
+            st.dataframe(pd.DataFrame([dados_coletados[-1]]))
+            
+            # Exibir todas as cidades consultadas
+            st.subheader("📊 Histórico Completo de Consultas")
+            st.dataframe(df)
+            
+            # Opções de download
+            if destino == "CSV":
                 csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    label="📥 Baixar CSV Atualizado",
-                    data=csv,
-                    file_name="dados_climaticos.csv",
-                    mime="text/csv"
-                )
-
-                # Exibir CSV completo acumulado
-                if os.path.exists("dados_climaticos.csv"):
-                    st.subheader("📂 Histórico Completo (CSV)")
-                    df_historico = pd.read_csv("dados_climaticos.csv")
-                    st.dataframe(df_historico)
-
-                # Exibir dados do SQLite3
-                if destino == "SQLite":
-                    st.subheader("📂 Histórico Completo (SQLite)")
-                    conn = sqlite3.connect("dados_climaticos.db")
-                    df_sqlite = pd.read_sql_query("SELECT * FROM dados_clima", conn)
-                    st.dataframe(df_sqlite)
-                    conn.close()
+                st.download_button("📥 Baixar CSV", csv, "dados_climaticos.csv", "text/csv")
+            elif destino == "Excel":
+                excel_buffer = io.BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+                    df.to_excel(writer, index=False, sheet_name="Dados Climáticos")
+                st.download_button("📥 Baixar Excel", excel_buffer.getvalue(), "dados_climaticos.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         else:
-            st.error("❌ Erro ao obter os dados. Verifique sua conexão e tente novamente.")
+            st.error("❌ Nenhum dado foi coletado. Verifique a chave da API e os nomes das cidades.")
