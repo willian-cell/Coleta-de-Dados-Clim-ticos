@@ -1,10 +1,10 @@
-# sistema personalizado
-
 from fastapi import FastAPI, Query
 import asyncio
 import aiohttp
 import pandas as pd
+import sqlite3
 from sqlalchemy import create_engine
+from datetime import datetime
 
 app = FastAPI()
 
@@ -14,15 +14,20 @@ async def obter_dados_climaticos(session, cidade, chave_api):
     async with session.get(url) as response:
         if response.status == 200:
             dados = await response.json()
+
+            # Obtém a data/hora UTC e formata para o formato brasileiro
+            data_coleta = datetime.utcnow().strftime("%d/%m/%Y às %H:%M")
+
             return {
                 "cidade": dados["name"],
                 "temperatura_atual": dados["main"]["temp"],
-                "data_coleta": pd.Timestamp.utcnow(),
+                "data_coleta": data_coleta,  # Data formatada
                 "sensacao_termica": dados["main"]["feels_like"],
                 "umidade": dados["main"]["humidity"],
                 "descricao_clima": dados["weather"][0]["description"]
             }
     return None
+
 
 # Rota para buscar os dados de várias cidades
 @app.get("/buscar_dados/")
@@ -57,6 +62,16 @@ async def buscar_dados(cidades: str, chave_api: str, destino: str = "csv", banco
         
         return {
             "mensagem": "Dados adicionados ao banco de dados!",
+            "dados": dados_coletados
+        }
+
+    elif destino == "sqlite":
+        conn = sqlite3.connect("dados_climaticos.db")
+        df.to_sql("dados_clima", conn, if_exists="append", index=False)
+        conn.close()
+        
+        return {
+            "mensagem": "Dados adicionados ao banco SQLite!",
             "dados": dados_coletados
         }
 

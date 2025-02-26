@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 import os
+import sqlite3
 
 st.set_page_config(page_title="Coleta de Dados Climáticos 🌍", layout="wide")
 
@@ -12,7 +13,9 @@ st.subheader("📊 Analista de Dados")
 # Entrada de dados
 chave_api = st.text_input("🔑 Digite sua chave da API OpenWeatherMap:", type="password")
 cidades = st.text_area("📍 Digite as cidades (separadas por vírgula):")
-destino = st.radio("📌 Onde deseja salvar os dados?", ["CSV", "Banco de Dados"])
+
+# Escolha do destino dos dados (CSV, Banco SQLAlchemy, ou SQLite)
+destino = st.radio("📌 Onde deseja salvar os dados?", ["CSV", "Banco de Dados", "SQLite"])
 
 banco_url = ""
 if destino == "Banco de Dados":
@@ -25,7 +28,7 @@ if st.button("🚀 Coletar Dados"):
         params = {
             "cidades": cidades,
             "chave_api": chave_api,
-            "destino": "banco" if destino == "Banco de Dados" else "csv",
+            "destino": "banco" if destino == "Banco de Dados" else "sqlite" if destino == "SQLite" else "csv",
             "banco_url": banco_url
         }
 
@@ -58,9 +61,16 @@ if st.button("🚀 Coletar Dados"):
 
                 # Exibir CSV completo acumulado
                 if os.path.exists("dados_climaticos.csv"):
-                    st.subheader("📂 Histórico Completo")
+                    st.subheader("📂 Histórico Completo (CSV)")
                     df_historico = pd.read_csv("dados_climaticos.csv")
                     st.dataframe(df_historico)
 
+                # Exibir dados do SQLite3
+                if destino == "SQLite":
+                    st.subheader("📂 Histórico Completo (SQLite)")
+                    conn = sqlite3.connect("dados_climaticos.db")
+                    df_sqlite = pd.read_sql_query("SELECT * FROM dados_clima", conn)
+                    st.dataframe(df_sqlite)
+                    conn.close()
         else:
             st.error("❌ Erro ao obter os dados. Verifique sua conexão e tente novamente.")
