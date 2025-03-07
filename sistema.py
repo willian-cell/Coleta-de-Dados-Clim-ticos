@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import io
 from datetime import datetime
+import pytz  # Importando pytz para conversão de horário
 
 st.set_page_config(page_title="Coleta de Dados Climáticos 🌍", layout="wide")
 
@@ -14,13 +15,16 @@ st.subheader("📊 Analista de Dados")
 if "consulta_de_dados" not in st.session_state:
     st.session_state.consulta_de_dados = []
 
+# Definir fuso horário de Brasília
+fuso_brasilia = pytz.timezone("America/Sao_Paulo")
+
 # Capturar nome do usuário localmente
 usuario = st.text_input("👤 Digite seu nome:", value="Usuário", max_chars=50)
 
 # Entrada de dados
 chave_api = "42d01a312f6740b003d77ae949a14376"
 cidades = st.text_area("📍 Digite as cidades (separadas por vírgula):")
-destino = st.radio("📌 Como deseja baixar seus dados?", ["CSV", "Excel"])  # Removido Word
+destino = st.radio("📌 Como deseja baixar seus dados?", ["CSV", "Excel"])
 
 if st.button("🚀 Coletar Dados"):
     if not chave_api or not cidades:
@@ -36,6 +40,12 @@ if st.button("🚀 Coletar Dados"):
                 
                 if response.status_code == 200:
                     dados = response.json()
+                    
+                    # Obtendo a hora atual em UTC e convertendo para o horário de Brasília
+                    data_coleta_utc = datetime.utcnow().replace(tzinfo=pytz.utc)
+                    data_coleta_brasilia = data_coleta_utc.astimezone(fuso_brasilia)
+                    data_formatada = data_coleta_brasilia.strftime("%d/%m/%Y %H:%M")
+
                     dados_coletados.append({
                         "Usuário": usuario,
                         "Cidade": dados["name"],
@@ -43,7 +53,7 @@ if st.button("🚀 Coletar Dados"):
                         "Sensação Térmica": dados["main"]["feels_like"],
                         "Umidade": dados["main"]["humidity"],
                         "Descrição do Clima": dados["weather"][0]["description"],
-                        "Data da Coleta": datetime.utcnow().strftime("%d/%m/%Y %H:%M")
+                        "Data da Coleta": data_formatada  # Horário de Brasília
                     })
             
         if dados_coletados:

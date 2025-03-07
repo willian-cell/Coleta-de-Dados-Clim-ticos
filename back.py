@@ -1,13 +1,12 @@
-from fastapi import FastAPI
-import asyncio
-import aiohttp
-import pandas as pd
-from datetime import datetime
+import pytz  # Importando pytz para converter fusos horários
 
 app = FastAPI()
 
 # Lista para armazenar consultas
 consulta_de_dados = []
+
+# Definir fuso horário de Brasília
+fuso_brasilia = pytz.timezone("America/Sao_Paulo")
 
 # Função para obter dados da API do OpenWeatherMap
 async def obter_dados_climaticos(session, cidade, chave_api):
@@ -16,13 +15,15 @@ async def obter_dados_climaticos(session, cidade, chave_api):
         if response.status == 200:
             dados = await response.json()
 
-            # Obtém a data/hora UTC e formata para o formato brasileiro
-            data_coleta = datetime.utcnow().strftime("%d/%m/%Y %H:%M")
+            # Obtendo a hora atual em UTC e convertendo para o horário de Brasília
+            data_coleta_utc = datetime.utcnow().replace(tzinfo=pytz.utc)
+            data_coleta_brasilia = data_coleta_utc.astimezone(fuso_brasilia)
+            data_formatada = data_coleta_brasilia.strftime("%d/%m/%Y %H:%M")
 
             return {
                 "Cidade": dados["name"],
                 "Temperatura Atual": dados["main"]["temp"],
-                "Data da Coleta": data_coleta,
+                "Data da Coleta": data_formatada,  # Horário de Brasília
                 "Sensação Térmica": dados["main"]["feels_like"],
                 "Umidade": dados["main"]["humidity"],
                 "Descrição do Clima": dados["weather"][0]["description"]
@@ -50,24 +51,3 @@ async def buscar_dados(cidades: str, chave_api: str):
         "mensagem": "Dados coletados com sucesso!",
         "dados": dados_coletados
     }
-
-# Rota para baixar todas as consultas
-@app.get("/baixar_dados/")
-def baixar_dados(formato: str = "csv"):
-    df = pd.DataFrame(consulta_de_dados)
-    
-    if df.empty:
-        return {"erro": "Nenhum dado disponível para download."}
-    
-    if formato == "csv":
-        df.to_csv("dados_climaticos.csv", index=False)
-        return {"mensagem": "Arquivo CSV gerado com sucesso!"}
-    elif formato == "excel":
-        df.to_excel("dados_climaticos.xlsx", index=False)
-        return {"mensagem": "Arquivo Excel gerado com sucesso!"}
-    
-    return {"erro": "Formato inválido!"}
-
-
-    # pip install fastapi uvicorn aiohttp pandas openpyxl
-
